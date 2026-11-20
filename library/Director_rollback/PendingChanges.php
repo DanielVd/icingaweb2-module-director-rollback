@@ -32,20 +32,26 @@ final class PendingChanges
         $lastId = (int) $adapter->fetchOne(
             $adapter->select()->from('director_activity_log', 'MAX(id)')
         );
-        $pending = $adapter->select()
-            ->where('id > ?', $baseline)
-            ->where('id <= ?', $lastId);
-        $count = (int) $adapter->fetchOne(
-            (clone $pending)->from('director_activity_log', 'COUNT(*)')
+        $statement = $adapter->query(
+            $adapter->select()
+                ->from('director_activity_log', [
+                    'id', 'object_type', 'object_name', 'action_name', 'old_properties', 'new_properties',
+                ])
+                ->where('id > ?', $baseline)
+                ->where('id <= ?', $lastId)
+                ->order('id ASC')
         );
+        $activities = (static function () use ($statement): iterable {
+            while ($row = $statement->fetch(\Zend_Db::FETCH_OBJ)) {
+                yield $row;
+            }
+        })();
+
+        $plan = RollbackPlan::fromActivities($activities);
+        $count = count($plan);
         $pages = max(1, (int) ceil($count / self::PAGE_SIZE));
         $page = max(1, min($page, $pages));
-        $rows = $adapter->fetchAll(
-            $pending
-                ->from('director_activity_log', ['id', 'object_type', 'object_name', 'action_name', 'author', 'change_time'])
-                ->order('id DESC')
-                ->limit(self::PAGE_SIZE, ($page - 1) * self::PAGE_SIZE)
-        );
+        $rows = array_slice($plan, ($page - 1) * self::PAGE_SIZE, self::PAGE_SIZE);
 
         return [
             'deploymentId' => (int) $deployment->get('id'),

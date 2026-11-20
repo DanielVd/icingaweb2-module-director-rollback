@@ -11,29 +11,36 @@
             $preview['baseline']
         )) ?></p>
         <?php if ($preview['count'] === 0): ?>
-            <p><?= $this->escape($this->translate('There are no activities after the active deployment.')) ?></p>
+            <p><?= $this->escape($this->translate('No rollback operations or entries requiring review.')) ?></p>
         <?php else: ?>
             <p><?= $this->escape(sprintf(
-                $this->translate('Activities after the active deployment: %d'),
+                $this->translate('Rollback plan entries: %d'),
                 $preview['count']
             )) ?></p>
             <table class="common-table table-row-selectable">
                 <thead>
                     <tr>
-                        <?php foreach (['Activity', 'Object type', 'Object', 'Action', 'Author', 'Time'] as $label): ?>
+                        <?php foreach (['Object type', 'Object', 'Scope', 'Proposed action', 'Activities'] as $label): ?>
                             <th><?= $this->escape($this->translate($label)) ?></th>
                         <?php endforeach ?>
                     </tr>
                 </thead>
                 <tbody>
+                    <?php
+                    $labels = [
+                        'restore' => $this->translate('Restore previous state'),
+                        'recreate' => $this->translate('Recreate deleted object'),
+                        'remove' => $this->translate('Remove new object'),
+                        'review' => $this->translate('Review required'),
+                    ];
+                    ?>
                     <?php foreach ($preview['rows'] as $row): ?>
                         <tr>
-                            <td><?= $this->escape($row->id) ?></td>
-                            <td><?= $this->escape($row->object_type) ?></td>
-                            <td><?= $this->escape($row->object_name) ?></td>
-                            <td><?= $this->escape($row->action_name) ?></td>
-                            <td><?= $this->escape($row->author) ?></td>
-                            <td><?= $this->escape($row->change_time) ?></td>
+                            <td><?= $this->escape($row['type']) ?></td>
+                            <td><?= $this->escape($row['name']) ?></td>
+                            <td><?= $this->escape($row['scope']) ?></td>
+                            <td><?= $this->escape($labels[$row['operation']]) ?></td>
+                            <td><?= $this->escape($row['activityCount']) ?></td>
                         </tr>
                     <?php endforeach ?>
                 </tbody>
