@@ -1,0 +1,59 @@
+<?php use Icinga\Web\Url; ?>
+<div class="content">
+    <h1><?= $this->escape($this->translate('Rollback preview')) ?></h1>
+    <?php if ($this->preview === null): ?>
+        <p><?= $this->escape($this->translate('The active deployment or its activity log checkpoint could not be verified.')) ?></p>
+    <?php else: ?>
+        <?php $preview = $this->preview; ?>
+        <p><?= $this->escape(sprintf(
+            $this->translate('Active deployment #%d, activity log checkpoint #%d.'),
+            $preview['deploymentId'],
+            $preview['baseline']
+        )) ?></p>
+        <?php if ($preview['count'] === 0): ?>
+            <p><?= $this->escape($this->translate('There are no activities after the active deployment.')) ?></p>
+        <?php else: ?>
+            <p><?= $this->escape(sprintf(
+                $this->translate('Activities after the active deployment: %d'),
+                $preview['count']
+            )) ?></p>
+            <table class="common-table table-row-selectable">
+                <thead>
+                    <tr>
+                        <?php foreach (['Activity', 'Object type', 'Object', 'Action', 'Author', 'Time'] as $label): ?>
+                            <th><?= $this->escape($this->translate($label)) ?></th>
+                        <?php endforeach ?>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($preview['rows'] as $row): ?>
+                        <tr>
+                            <td><?= $this->escape($row->id) ?></td>
+                            <td><?= $this->escape($row->object_type) ?></td>
+                            <td><?= $this->escape($row->object_name) ?></td>
+                            <td><?= $this->escape($row->action_name) ?></td>
+                            <td><?= $this->escape($row->author) ?></td>
+                            <td><?= $this->escape($row->change_time) ?></td>
+                        </tr>
+                    <?php endforeach ?>
+                </tbody>
+            </table>
+            <?php if ($preview['pages'] > 1): ?>
+                <?php $url = Url::fromRequest(); ?>
+                <p>
+                    <?php if ($preview['page'] > 1): ?>
+                        <a href="<?= $this->escape((string) $url->with('page', $preview['page'] - 1)) ?>">
+                            <?= $this->escape($this->translate('Previous')) ?>
+                        </a>
+                    <?php endif ?>
+                    <?= $this->escape(sprintf($this->translate('Page %d of %d'), $preview['page'], $preview['pages'])) ?>
+                    <?php if ($preview['page'] < $preview['pages']): ?>
+                        <a href="<?= $this->escape((string) $url->with('page', $preview['page'] + 1)) ?>">
+                            <?= $this->escape($this->translate('Next')) ?>
+                        </a>
+                    <?php endif ?>
+                </p>
+            <?php endif ?>
+        <?php endif ?>
+    <?php endif ?>
+</div>
