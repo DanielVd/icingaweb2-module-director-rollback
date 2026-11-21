@@ -14,7 +14,6 @@
             $this->deploymentId
         )) ?></p>
         <?php
-        $resetDiffOnReturn = true;
         $labels = [
             'restore' => $this->translate('Restore previous state'),
             'recreate' => $this->translate('Recreate deleted object'),
@@ -50,6 +49,6 @@
                 <?php endforeach ?>
             </tbody>
         </table>
-        <div class="director-rollback-actions"><?= $this->rollbackForm ?></div>
+        <div class="director-rollback-actions director-rollback-full-confirmation"><?= $this->rollbackForm ?></div>
     <?php endif ?>
 </div>

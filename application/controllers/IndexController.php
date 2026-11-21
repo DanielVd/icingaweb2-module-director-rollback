@@ -87,7 +87,10 @@ class IndexController extends Controller
                 $this->view->diffs = $pending->diffs($rows);
             }
 
-            $this->view->rollbackForm = $this->confirmationForm($snapshot['token']);
+            $redirect = $this->hasPermission('director/deploy')
+                ? $this->rollbackUrl('director/deployment', ['id' => $snapshot['deploymentId']])
+                : null;
+            $this->view->rollbackForm = $this->confirmationForm($snapshot['token'], redirect: $redirect);
         } catch (DomainException $exception) {
             $this->getResponse()->setHttpResponseCode(409);
             $this->view->error = $this->translate($exception->getMessage());
@@ -174,19 +177,26 @@ class IndexController extends Controller
         return true;
     }
 
-    private function rollbackUrl(string $path): Url
+    private function rollbackUrl(string $path, array $params = []): Url
     {
         $resource = $this->getRequest()->getQuery('dbResourceName');
-        return Url::fromPath($path, is_string($resource) ? ['dbResourceName' => $resource] : []);
+        if (is_string($resource)) {
+            $params['dbResourceName'] = $resource;
+        }
+        return Url::fromPath($path, $params);
     }
 
-    private function confirmationForm(string $token, ?array $requested = null, bool $handle = true): Form
-    {
+    private function confirmationForm(
+        string $token,
+        ?array $requested = null,
+        bool $handle = true,
+        ?Url $redirect = null
+    ): Form {
         $partial = $requested !== null;
         $form = new Form();
         $form->setName($partial ? 'director_rollback_partial' : 'director_rollback_confirm')
             ->setSubmitLabel($partial ? $this->translate('Apply partial rollback') : $this->translate('Apply full rollback'))
-            ->setRedirectUrl($this->rollbackUrl('director_rollback'))
+            ->setRedirectUrl($redirect ?? $this->rollbackUrl('director_rollback'))
             ->setAction($this->rollbackUrl($partial ? 'director_rollback/index/partial' : 'director_rollback/index/full'));
         $form->addElement('hidden', 'snapshot_token', [
             'required' => true,

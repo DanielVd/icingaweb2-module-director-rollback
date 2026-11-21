@@ -36,7 +36,7 @@ The diff displays an allowlist of fields. It hides custom variable values.
 
 1. Open **Full rollback** and review the affected objects and their proposed operations.
 2. Expand **Show changes** on an object to inspect its diff.
-3. Select **Apply full rollback** to confirm. The module rechecks the plan and commits only if the rendered configuration matches the active deployment. The comparison allows ordering differences for equivalent service declarations and tied legacy imports whose database weights stayed unchanged.
+3. Select **Apply full rollback** to confirm. The module rechecks the plan and commits only if the rendered configuration matches the active deployment. The comparison allows ordering differences for equivalent service declarations and tied legacy imports whose database weights stayed unchanged. After success, users with `director/deploy` go to the active deployment details.
 
 ### Partial rollback
 
