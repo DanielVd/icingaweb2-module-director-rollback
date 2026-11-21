@@ -151,8 +151,6 @@ class IndexController extends Controller
                 'value' => implode(',', $requested),
                 'validators' => [['Regex', false, ['pattern' => '/\A[1-9][0-9]*(?:,[1-9][0-9]*)*\z/']]],
             ]);
-        } else {
-            $form->setAttrib('class', trim($form->getAttrib('class') . ' inline'));
         }
         $form->setOnSuccess(function (Form $submitted) use ($partial): bool {
             try {
