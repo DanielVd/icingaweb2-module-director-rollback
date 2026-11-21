@@ -66,17 +66,25 @@
             <table class="common-table">
                 <thead>
                     <tr>
-                        <?php foreach (['Object type', 'Object', 'Scope', 'Proposed action'] as $label): ?>
+                        <?php foreach (['Select', 'Object type', 'Object', 'Scope', 'Proposed action'] as $label): ?>
                             <th><?= $this->escape($this->translate($label)) ?></th>
                         <?php endforeach ?>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($this->choices as $row): ?>
+                        <?php $checkboxId = $this->escape($this->protectId('rollback-object-' . $row['firstId'])); ?>
                         <tr>
+                            <td>
+                                <input class="sr-only" type="checkbox" id="<?= $checkboxId ?>" name="objects[]"
+                                       value="<?= $this->escape($row['firstId']) ?>">
+                                <label class="toggle-switch" for="<?= $checkboxId ?>" aria-hidden="true">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </td>
                             <td><?= $this->escape($row['type']) ?></td>
                             <td>
-                                <label><input type="checkbox" name="objects[]" value="<?= $this->escape($row['firstId']) ?>">
+                                <label for="<?= $checkboxId ?>">
                                     <?= $this->escape($row['name']) ?>
                                 </label>
                             </td>
