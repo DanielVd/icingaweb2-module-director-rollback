@@ -20,6 +20,8 @@ node test/PartialSelectionTest.js
 python3 test/check-doc-links.py
 ```
 
+CI also runs PHPStan at level 5 on the standalone rollback plan, field diff, and service file comparison classes. To reproduce it, use the pinned PHAR and command in the [validation workflow](.github/workflows/ci.yml). Framework-dependent files are syntax-checked in CI. Analyzing those files with PHPStan also requires the installed Icinga Web 2 and Director classes.
+
 Match [EditorConfig](.editorconfig) and surrounding code. PHP uses the Icinga module namespace and views. Keep changes to selection logic consistent across the PHP planner and the JavaScript UI. Use the server-side planner as the authority for dependencies and ordering.
 
 ## Integration tests

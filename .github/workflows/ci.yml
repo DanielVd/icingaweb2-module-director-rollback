@@ -26,5 +26,13 @@ jobs:
         run: |
           php test/RollbackPlanTest.php
           node test/PartialSelectionTest.js
+      - name: Analyze standalone PHP code
+        run: |
+          phar="$RUNNER_TEMP/phpstan.phar"
+          curl --fail --silent --show-error --location --retry 2 --max-time 60 \
+            https://github.com/phpstan/phpstan/releases/download/2.3.7/phpstan.phar -o "$phar"
+          printf '%s  %s\n' '87fa9aa451bb9b61d7c65d40ec7d14d5bab67e3ad74ce75a09b3140d6f22631a' "$phar" | sha256sum --check
+          php "$phar" analyse --level=5 --no-progress \
+            library/Director_rollback/{RollbackPlan,RollbackDiff,ServiceFileComparison}.php
       - name: Check relative documentation links
         run: python3 test/check-doc-links.py
