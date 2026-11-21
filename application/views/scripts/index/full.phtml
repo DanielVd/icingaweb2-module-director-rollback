@@ -1,0 +1,55 @@
+<div class="content">
+    <h1><?= $this->escape($this->translate('Review full rollback')) ?></h1>
+    <div class="director-rollback-actions">
+        <a class="director-rollback-button" href="<?= $this->escape((string) $this->overviewUrl) ?>">
+            <?= $this->escape($this->translate('Back to all changes')) ?>
+        </a>
+    </div>
+    <?php if ($this->error !== null): ?>
+        <p class="error"><?= $this->escape($this->error) ?></p>
+    <?php elseif ($this->rows): ?>
+        <p><?= $this->escape(sprintf(
+            $this->translate('This rollback affects %d objects. The active deployment #%d stays unchanged.'),
+            count($this->rows),
+            $this->deploymentId
+        )) ?></p>
+        <?php
+        $resetDiffOnReturn = true;
+        $labels = [
+            'restore' => $this->translate('Restore previous state'),
+            'recreate' => $this->translate('Recreate deleted object'),
+            'remove' => $this->translate('Remove new object'),
+        ];
+        $counts = array_count_values(array_column($this->rows, 'operation'));
+        ?>
+        <ul>
+            <?php foreach ($labels as $operation => $label): ?>
+                <?php if (isset($counts[$operation])): ?>
+                    <li><?= $this->escape(sprintf('%s (%d)', $label, $counts[$operation])) ?></li>
+                <?php endif ?>
+            <?php endforeach ?>
+        </ul>
+        <table class="common-table">
+            <thead><tr>
+                <?php foreach (['Object type', 'Object', 'Scope', 'Proposed action'] as $label): ?>
+                    <th><?= $this->escape($this->translate($label)) ?></th>
+                <?php endforeach ?>
+            </tr></thead>
+            <tbody>
+                <?php foreach ($this->rows as $row): ?>
+                    <tr>
+                        <td><?= $this->escape($row['type']) ?></td>
+                        <td><?= $this->escape($row['name']) ?></td>
+                        <td><?= $this->escape($row['scope']) ?></td>
+                        <td><?= $this->escape($labels[$row['operation']]) ?></td>
+                    </tr>
+                    <?php $diff = $this->diffs[$row['firstId']] ?? []; ?>
+                    <?php if ($diff !== []): ?>
+                        <tr><td colspan="4"><?php include __DIR__ . '/diff.phtml'; ?></td></tr>
+                    <?php endif ?>
+                <?php endforeach ?>
+            </tbody>
+        </table>
+        <div class="director-rollback-actions"><?= $this->rollbackForm ?></div>
+    <?php endif ?>
+</div>

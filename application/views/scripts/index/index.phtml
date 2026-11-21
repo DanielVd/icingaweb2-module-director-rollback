@@ -1,0 +1,85 @@
+<?php use Icinga\Web\Url; ?>
+<div class="content">
+    <h1><?= $this->escape($this->translate('Rollback preview')) ?></h1>
+    <?php if ($this->preview === null): ?>
+        <p><?= $this->escape($this->translate('The active deployment or its activity log checkpoint could not be verified.')) ?></p>
+    <?php else: ?>
+        <?php $preview = $this->preview; ?>
+        <p><?= $this->escape(sprintf(
+            $this->translate('Active deployment #%d, activity log checkpoint #%d.'),
+            $preview['deploymentId'],
+            $preview['baseline']
+        )) ?></p>
+        <?php if ($this->fullUrl !== null): ?>
+            <p><?= $this->escape($this->translate('Rollback leaves the active deployment unchanged.')) ?></p>
+        <?php elseif ($preview['count'] > 0 && ! $preview['canApply']): ?>
+            <p><?= $this->escape($this->translate('Full rollback is unavailable while entries require review.')) ?></p>
+        <?php endif ?>
+        <?php if ($this->fullUrl !== null || $this->partialUrl !== null): ?>
+            <div class="director-rollback-actions">
+                <?php if ($this->fullUrl !== null): ?>
+                    <a class="director-rollback-button" href="<?= $this->escape((string) $this->fullUrl) ?>">
+                        <?= $this->escape($this->translate('Full rollback')) ?>
+                    </a>
+                <?php endif ?>
+                <?php if ($this->partialUrl !== null): ?>
+                    <a class="director-rollback-button" href="<?= $this->escape((string) $this->partialUrl) ?>">
+                        <?= $this->escape($this->translate('Partial rollback')) ?>
+                    </a>
+                <?php endif ?>
+            </div>
+        <?php endif ?>
+        <?php if ($preview['count'] === 0): ?>
+            <p><?= $this->escape($this->translate('No rollback operations or entries requiring review.')) ?></p>
+        <?php else: ?>
+            <p><?= $this->escape(sprintf(
+                $this->translate('Rollback plan entries: %d'),
+                $preview['count']
+            )) ?></p>
+            <table class="common-table table-row-selectable">
+                <thead>
+                    <tr>
+                        <?php foreach (['Object type', 'Object', 'Scope', 'Proposed action', 'Activities'] as $label): ?>
+                            <th><?= $this->escape($this->translate($label)) ?></th>
+                        <?php endforeach ?>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    $labels = [
+                        'restore' => $this->translate('Restore previous state'),
+                        'recreate' => $this->translate('Recreate deleted object'),
+                        'remove' => $this->translate('Remove new object'),
+                        'review' => $this->translate('Review required'),
+                    ];
+                    ?>
+                    <?php foreach ($preview['rows'] as $row): ?>
+                        <tr>
+                            <td><?= $this->escape($row['type']) ?></td>
+                            <td><?= $this->escape($row['name']) ?></td>
+                            <td><?= $this->escape($row['scope']) ?></td>
+                            <td><?= $this->escape($labels[$row['operation']]) ?></td>
+                            <td><?= $this->escape($row['activityCount']) ?></td>
+                        </tr>
+                    <?php endforeach ?>
+                </tbody>
+            </table>
+            <?php if ($preview['pages'] > 1): ?>
+                <?php $url = Url::fromRequest(); ?>
+                <nav class="director-rollback-actions" aria-label="<?= $this->escape($this->translate('Pagination')) ?>">
+                    <?php if ($preview['page'] > 1): ?>
+                        <a class="director-rollback-button" href="<?= $this->escape((string) $url->with('page', $preview['page'] - 1)) ?>">
+                            <?= $this->escape($this->translate('Previous')) ?>
+                        </a>
+                    <?php endif ?>
+                    <?= $this->escape(sprintf($this->translate('Page %d of %d'), $preview['page'], $preview['pages'])) ?>
+                    <?php if ($preview['page'] < $preview['pages']): ?>
+                        <a class="director-rollback-button" href="<?= $this->escape((string) $url->with('page', $preview['page'] + 1)) ?>">
+                            <?= $this->escape($this->translate('Next')) ?>
+                        </a>
+                    <?php endif ?>
+                </nav>
+            <?php endif ?>
+        <?php endif ?>
+    <?php endif ?>
+</div>

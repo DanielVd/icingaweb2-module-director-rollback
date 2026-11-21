@@ -1,0 +1,104 @@
+<div class="content">
+    <h1><?= $this->escape($this->translate('Partial rollback')) ?></h1>
+    <div class="director-rollback-actions">
+        <a class="director-rollback-button" href="<?= $this->escape((string) $this->overviewUrl) ?>">
+            <?= $this->escape($this->translate('Back to all changes')) ?>
+        </a>
+    </div>
+    <?php if ($this->error !== null): ?>
+        <p class="error"><?= $this->escape($this->error) ?></p>
+    <?php endif ?>
+    <?php
+    $labels = [
+        'restore' => $this->translate('Restore previous state'),
+        'recreate' => $this->translate('Recreate deleted object'),
+        'remove' => $this->translate('Remove new object'),
+    ];
+    ?>
+    <?php if ($this->selection !== null): ?>
+        <h2><?= $this->escape($this->translate('Review selected changes')) ?></h2>
+        <table class="common-table">
+            <thead>
+                <tr>
+                    <?php foreach (['Object type', 'Object', 'Scope', 'Proposed action', 'Included as'] as $label): ?>
+                        <th><?= $this->escape($this->translate($label)) ?></th>
+                    <?php endforeach ?>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($this->selection['rows'] as $row): ?>
+                    <tr>
+                        <td><?= $this->escape($row['type']) ?></td>
+                        <td><?= $this->escape($row['name']) ?></td>
+                        <td><?= $this->escape($row['scope']) ?></td>
+                        <td><?= $this->escape($labels[$row['operation']]) ?></td>
+                        <td>
+                            <?php if (in_array($row['firstId'], $this->selection['requested'], true)): ?>
+                                <?= $this->escape($this->translate('Selected')) ?>
+                            <?php endif ?>
+                            <?php foreach ($this->selection['reasons'][$row['firstId']] ?? [] as $reason): ?>
+                                <div><?= $this->escape(sprintf(
+                                    $reason['operation'] === 'remove'
+                                        ? $this->translate('Required before removing %s')
+                                        : $this->translate('Required to restore %s'),
+                                    $reason['name']
+                                )) ?></div>
+                            <?php endforeach ?>
+                        </td>
+                    </tr>
+                    <?php $diff = $this->diffs[$row['firstId']] ?? []; ?>
+                    <?php if ($diff !== []): ?>
+                        <tr><td colspan="5"><?php include __DIR__ . '/diff.phtml'; ?></td></tr>
+                    <?php endif ?>
+                <?php endforeach ?>
+            </tbody>
+        </table>
+        <p><?= $this->escape($this->translate('The active deployment is unchanged. Other pending changes stay pending.')) ?></p>
+        <div class="director-rollback-actions">
+            <?= $this->rollbackForm ?>
+            <a class="director-rollback-button" href="<?= $this->escape((string) $this->selectionUrl) ?>">
+                <?= $this->escape($this->translate('Change selection')) ?>
+            </a>
+        </div>
+    <?php elseif ($this->choices): ?>
+        <p><?= $this->escape($this->translate('Select the objects to roll back. The preview includes any required dependencies.')) ?></p>
+        <form class="icinga-controls" action="<?= $this->escape((string) $this->selectionUrl) ?>" method="post">
+            <table class="common-table">
+                <thead>
+                    <tr>
+                        <?php foreach (['Select', 'Object type', 'Object', 'Scope', 'Proposed action'] as $label): ?>
+                            <th><?= $this->escape($this->translate($label)) ?></th>
+                        <?php endforeach ?>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($this->choices as $row): ?>
+                        <?php $checkboxId = $this->escape($this->protectId('rollback-object-' . $row['firstId'])); ?>
+                        <tr>
+                            <td>
+                                <input class="sr-only" type="checkbox" id="<?= $checkboxId ?>" name="objects[]"
+                                       value="<?= $this->escape($row['firstId']) ?>">
+                                <label class="toggle-switch" for="<?= $checkboxId ?>" aria-hidden="true">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </td>
+                            <td><?= $this->escape($row['type']) ?></td>
+                            <td>
+                                <label for="<?= $checkboxId ?>">
+                                    <?= $this->escape($row['name']) ?>
+                                </label>
+                            </td>
+                            <td><?= $this->escape($row['scope']) ?></td>
+                            <td><?= $this->escape($labels[$row['operation']]) ?></td>
+                        </tr>
+                    <?php endforeach ?>
+                </tbody>
+            </table>
+            <div class="director-rollback-actions">
+                <button type="submit"><?= $this->escape($this->translate('Review selection')) ?></button>
+            </div>
+        </form>
+    <?php elseif ($this->error === null): ?>
+        <p><?= $this->escape($this->translate('There are no objects eligible for partial rollback.')) ?></p>
+    <?php endif ?>
+</div>
