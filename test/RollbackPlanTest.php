@@ -41,11 +41,11 @@ $plan = RollbackPlan::fromActivities([
     activity(2, $host, 'temporary', 'delete', snapshot('temporary'), null),
     activity(3, $host, 'new', 'create', null, snapshot('new')),
     activity(4, $host, 'deleted', 'delete', snapshot('deleted'), null),
-    activity(5, $service, 'ping', 'modify', snapshot('ping', 'alpha'), snapshot('ping', 'alpha')),
+    activity(5, $service, 'ping', 'modify', snapshot('ping', 'alpha'), snapshot('ping', 'alpha') + ['display_name' => 'Ping']),
     activity(6, $service, 'ping', 'create', null, snapshot('ping', 'beta')),
-    activity(7, $service, 'ping', 'modify', snapshot('ping', 'alpha'), snapshot('ping', 'alpha')),
+    activity(7, $service, 'ping', 'modify', snapshot('ping', 'alpha') + ['display_name' => 'Ping'], snapshot('ping', 'alpha') + ['display_name' => 'Ping v2']),
     activity(8, $host, 'rebuilt', 'delete', snapshot('rebuilt'), null),
-    activity(9, $host, 'rebuilt', 'create', null, snapshot('rebuilt')),
+    activity(9, $host, 'rebuilt', 'create', null, snapshot('rebuilt') + ['address' => '192.0.2.11']),
 ]);
 expect(
     [
@@ -74,6 +74,10 @@ $plan = RollbackPlan::fromActivities([
     activity(8, 'icinga_command', 'check', 'delete', snapshot('check'), null),
 ]);
 expect(array_fill(0, 7, 'review'), array_column($plan, 'operation'));
+expect([], RollbackPlan::fromActivities([
+    activity(1, $host, 'restored', 'modify', snapshot('restored'), snapshot('restored') + ['display_name' => 'Test']),
+    activity(2, $host, 'restored', 'modify', snapshot('restored') + ['display_name' => 'Test'], snapshot('restored')),
+]));
 expect([], RollbackPlan::fromActivities([]));
 
 echo "Rollback plan tests passed\n";

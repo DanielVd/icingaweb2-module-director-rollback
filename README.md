@@ -1,6 +1,6 @@
 # Icinga Web 2 Director Rollback
 
-An Icinga Web 2 module for reviewing pending Icinga Director changes against the active deployment. The read-only preview groups activity for hosts and services into proposed rollback operations. Entries with ambiguous identity or unsupported object types are flagged for review. Applying a full or selective rollback is planned.
+An Icinga Web 2 module for reviewing pending Icinga Director changes against the active deployment. The read-only preview groups activity for hosts and services into proposed rollback operations. Entries with ambiguous identity or unsupported object types are flagged for review. Full rollback is available when every pending operation is supported. Selective rollback is planned.
 
 ## Development
 
@@ -15,3 +15,9 @@ php test/RollbackPlanTest.php
 ```
 
 On a development instance, make the checkout available in the Icinga Web 2 module path as `director_rollback`, then enable it with `icingacli module enable director_rollback`. A user with access to Director, access to the module and the `director/audit` permission can open **Icinga Director → Rollback**.
+
+## Full rollback
+
+Applying the plan requires `director_rollback/apply` in addition to the preview permissions. The module rechecks the active deployment and activity log, reverses the supported host and service changes in a database transaction, and commits only when the regenerated checksum matches the active deployment. The operation does not deploy a configuration to Icinga 2.
+
+Entries requiring review block full rollback. This includes renamed objects, apply rules, older entries with incomplete snapshots, and object types outside the currently supported hosts and services.

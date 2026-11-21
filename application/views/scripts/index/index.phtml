@@ -10,6 +10,12 @@
             $preview['deploymentId'],
             $preview['baseline']
         )) ?></p>
+        <?php if ($this->rollbackForm !== null): ?>
+            <p><?= $this->escape($this->translate('Applying this plan rolls back all pending changes without deploying.')) ?></p>
+            <?= $this->rollbackForm ?>
+        <?php elseif ($preview['count'] > 0 && ! $preview['canApply']): ?>
+            <p><?= $this->escape($this->translate('Full rollback is unavailable while entries require review.')) ?></p>
+        <?php endif ?>
         <?php if ($preview['count'] === 0): ?>
             <p><?= $this->escape($this->translate('No rollback operations or entries requiring review.')) ?></p>
         <?php else: ?>

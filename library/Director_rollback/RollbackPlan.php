@@ -42,13 +42,17 @@ final class RollbackPlan
                     'existed' => $existed,
                     'exists' => $exists,
                     'consistent' => true,
+                    'before' => $activity->old_properties,
+                    'after' => $activity->new_properties,
                 ];
             } else {
                 $group = &$groups[$key];
                 $group['consistent'] = $group['consistent'] && $group['exists'] === $existed;
                 $group['exists'] = $exists;
+                $group['after'] = $activity->new_properties;
                 $group['lastId'] = (int) $activity->id;
-                ++$group['activityCount'];
+                $group['activityIds'][] = (int) $activity->id;
+                $group['activityCount'] = count($group['activityIds']);
                 unset($group);
             }
         }
@@ -58,6 +62,9 @@ final class RollbackPlan
             if (! $group['consistent'] || isset($blockedNames[$group['type']][$group['name']])) {
                 $group['operation'] = 'review';
             } elseif ($group['existed']) {
+                if ($group['exists'] && self::sameState($group['before'], $group['after'])) {
+                    continue;
+                }
                 $group['operation'] = $group['exists'] ? 'restore' : 'recreate';
             } elseif ($group['exists']) {
                 $group['operation'] = 'remove';
@@ -65,12 +72,28 @@ final class RollbackPlan
                 continue;
             }
 
-            unset($group['existed'], $group['exists'], $group['consistent']);
+            unset($group['existed'], $group['exists'], $group['consistent'], $group['before'], $group['after']);
             $rows[] = $group;
         }
 
         usort($rows, static fn (array $a, array $b): int => $b['lastId'] <=> $a['lastId']);
         return $rows;
+    }
+
+    public static function sameState(string $left, string $right): bool
+    {
+        $normalize = static function (string $snapshot): array {
+            $properties = (array) json_decode($snapshot, false, 512, JSON_THROW_ON_ERROR);
+            foreach (['groups', 'imports', 'vars', 'custom_properties'] as $property) {
+                if (isset($properties[$property]) && (array) $properties[$property] === []) {
+                    unset($properties[$property]);
+                }
+            }
+            ksort($properties);
+            return array_map(static fn ($value) => json_encode($value, JSON_THROW_ON_ERROR), $properties);
+        };
+
+        return $normalize($left) === $normalize($right);
     }
 
     private static function identity(string $type, ?string $snapshot): ?array
@@ -111,6 +134,7 @@ final class RollbackPlan
             'firstId' => (int) $activity->id,
             'lastId' => (int) $activity->id,
             'activityCount' => 1,
+            'activityIds' => [(int) $activity->id],
         ];
     }
 }

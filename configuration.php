@@ -3,6 +3,8 @@
 use Icinga\Application\Icinga;
 use Icinga\Authentication\Auth;
 
+$this->providePermission('director_rollback/apply', $this->translate('Apply a full Director rollback'));
+
 $app = Icinga::app();
 if (! $app->isWeb()) {
     return;
