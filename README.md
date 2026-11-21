@@ -2,7 +2,7 @@
 
 Review and undo pending changes in Icinga Director. The module can discard the full pending plan or roll back selected objects and their required dependencies. It updates Director's working configuration and leaves the active Icinga 2 deployment in place.
 
-This is a **development preview**. See the [changelog](CHANGELOG.md) for work on the preview branch and the [licensing status](#licensing) before distributing it.
+This is a **development preview**. See the [changelog](CHANGELOG.md) for changes in the current prerelease.
 
 ## Requirements
 
@@ -20,7 +20,7 @@ The Icinga Web 2 and Director installations provide the runtime libraries. The m
 Use the standard module directory or substitute the module path configured on your host. The checkout directory must be named `director_rollback`, matching the Icinga Web 2 module ID.
 
 ```sh
-sudo git clone --branch feat/rollback-preview --single-branch \
+sudo git clone --branch v0.5.2 --single-branch \
   https://github.com/DanielVd/icingaweb2-module-director-rollback.git \
   /usr/share/icingaweb2/modules/director_rollback
 sudo icingacli module enable director_rollback
@@ -52,4 +52,4 @@ Supported objects include hosts, services, host and service templates, service s
 
 ## Licensing
 
-License selection and attribution review are pending. The repository currently has no project license file or SPDX license declaration. See the [release checklist](docs/release-process.md#before-tagging).
+The module is licensed under the [GNU General Public License v3.0 or later](LICENSE), SPDX identifier `GPL-3.0-or-later`. The Icinga Web 2, Director, and PHP libraries supplied by the host installation retain their own licenses.
