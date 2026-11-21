@@ -168,7 +168,7 @@ class IndexController extends Controller
         }
 
         if ($this->Config()->get('frontend', 'disabled', 'no') === 'yes') {
-            $this->httpNotFound();
+            $this->httpNotFound('Not found');
         }
 
         return true;

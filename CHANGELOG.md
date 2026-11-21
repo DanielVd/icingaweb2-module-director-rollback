@@ -16,4 +16,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - Start object diffs collapsed in both rollback reviews.
 - Open the Director **Deployments** list after either rollback succeeds when the operator has `director/deploy`. Applying a rollback leaves the active deployment in place.
 
+### Fixed
+
+- Return HTTP 404 when the Director frontend is disabled.
+
 [Unreleased]: https://github.com/DanielVd/icingaweb2-module-director-rollback/compare/main...feat/rollback-preview
