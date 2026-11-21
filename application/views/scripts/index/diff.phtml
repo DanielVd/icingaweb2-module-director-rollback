@@ -14,7 +14,7 @@ foreach ($diff as $field) {
 }
 
 ?>
-<details class="collapsible director-rollback-diff">
+<details class="collapsible director-rollback-diff"<?php if (! empty($resetDiffOnReturn)): ?> data-no-persistence<?php endif ?>>
     <summary class="director-rollback-button"><?= $this->escape($this->translate('Show changes')) ?></summary>
     <?php if ($current !== []): ?>
         <div class="director-rollback-diff-labels">
