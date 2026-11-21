@@ -36,13 +36,15 @@ The diff displays an allowlist of fields. It hides custom variable values.
 
 1. Open **Full rollback** and review the affected objects and their proposed operations.
 2. Expand **Show changes** on an object to inspect its diff.
-3. Select **Apply full rollback** to confirm. The module rechecks the plan and commits only if the rendered configuration matches the active deployment. The comparison allows ordering differences for equivalent service declarations and tied legacy imports whose database weights stayed unchanged. After success, users with `director/deploy` go to the active deployment details.
+3. Select **Apply full rollback** to confirm. The module rechecks the plan and commits only if the rendered configuration matches the active deployment. The comparison allows ordering differences for equivalent service declarations and tied legacy imports whose database weights stayed unchanged.
 
 ### Partial rollback
 
 1. Open **Partial rollback**, select the objects to restore and click **Review selection**.
 2. Pending hosts and their directly attached services, and pending service sets and their members, are selected together. Review the proposed operations and the reasons for any automatically included dependencies. For example, removing a pending new host also requires removing its pending services.
 3. Select **Apply partial rollback**. The transaction preserves unrelated pending operations and leaves the active deployment in place.
+
+After either rollback succeeds, users with `director/deploy` go to Director's **Deployments** list. Users without that permission return to the rollback overview.
 
 ### Unsupported or ambiguous changes
 

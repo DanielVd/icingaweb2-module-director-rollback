@@ -1,6 +1,6 @@
 Module: director_rollback
 Name: Icinga Director Rollback
-Version: 0.5.1
+Version: 0.5.2
 Requires:
   Modules: director (>=1.12.1)
 Description: Preview and roll back pending Icinga Director changes.

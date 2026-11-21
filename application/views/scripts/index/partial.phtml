@@ -56,7 +56,7 @@
             </tbody>
         </table>
         <p><?= $this->escape($this->translate('The active deployment is unchanged. Other pending changes stay pending.')) ?></p>
-        <div class="director-rollback-actions">
+        <div class="director-rollback-actions director-rollback-confirmation">
             <?= $this->rollbackForm ?>
             <a class="director-rollback-button" href="<?= $this->escape((string) $this->selectionUrl) ?>">
                 <?= $this->escape($this->translate('Change selection')) ?>
