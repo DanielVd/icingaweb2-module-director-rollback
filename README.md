@@ -41,7 +41,7 @@ The diff displays an allowlist of fields. It hides custom variable values.
 ### Partial rollback
 
 1. Open **Partial rollback**, select the objects to restore and click **Review selection**.
-2. Review the proposed operations and the reasons for any automatically included dependencies. For example, removing a pending new host also requires removing its pending services.
+2. Pending hosts and their directly attached services, and pending service sets and their members, are selected together. Review the proposed operations and the reasons for any automatically included dependencies. For example, removing a pending new host also requires removing its pending services.
 3. Select **Apply partial rollback**. The transaction preserves unrelated pending operations and leaves the active deployment in place.
 
 ### Unsupported or ambiguous changes
@@ -58,6 +58,7 @@ Run PHP lint and the planner tests from the repository root.
 php -l configuration.php
 find application library test -type f \( -name '*.php' -o -name '*.phtml' \) -exec php -l '{}' \;
 php test/RollbackPlanTest.php
+node test/PartialSelectionTest.js
 ```
 
 For database integration tests, use a host with Icinga Web 2, Director, MariaDB root socket access and a Director database with a successful active deployment and an empty rollback plan. Replace `director` if the database has a different name.

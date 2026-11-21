@@ -12,6 +12,6 @@ mariadb -e "CREATE DATABASE \`$test_db\`"
 trap 'mariadb -e "DROP DATABASE \`$test_db\`"' EXIT
 mariadb-dump --single-transaction --skip-lock-tables "$source_db" | mariadb "$test_db"
 
-for step in prepare full prepare partial stale atomic full prepare-restore restore; do
+for step in prepare full prepare partial stale atomic full independent prepare-restore restore; do
     php "$(dirname "$0")/DirectorIntegrationTest.php" "$test_db" "$step"
 done

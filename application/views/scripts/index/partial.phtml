@@ -38,9 +38,11 @@
                             <?php endif ?>
                             <?php foreach ($this->selection['reasons'][$row['firstId']] ?? [] as $reason): ?>
                                 <div><?= $this->escape(sprintf(
-                                    $reason['operation'] === 'remove'
-                                        ? $this->translate('Required before removing %s')
-                                        : $this->translate('Required to restore %s'),
+                                    match ($reason['operation']) {
+                                        'remove' => $this->translate('Required before removing %s'),
+                                        'recreate' => $this->translate('Required to restore %s'),
+                                        'linked' => $this->translate('Part of the same pending group as %s'),
+                                    },
                                     $reason['name']
                                 )) ?></div>
                             <?php endforeach ?>
@@ -61,8 +63,9 @@
             </a>
         </div>
     <?php elseif ($this->choices): ?>
-        <p><?= $this->escape($this->translate('Select the objects to roll back. The preview includes any required dependencies.')) ?></p>
-        <form class="icinga-controls" action="<?= $this->escape((string) $this->selectionUrl) ?>" method="post">
+        <p><?= $this->escape($this->translate('Select the objects to roll back. Pending hosts and their services, and service sets and their members, are selected together.')) ?></p>
+        <form class="icinga-controls" action="<?= $this->escape((string) $this->selectionUrl) ?>" method="post"
+              data-rollback-links="<?= $this->escape(json_encode((object) ($this->selectionLinks ?? []), JSON_THROW_ON_ERROR)) ?>">
             <table class="common-table">
                 <thead>
                     <tr>
@@ -76,7 +79,7 @@
                         <?php $checkboxId = $this->escape($this->protectId('rollback-object-' . $row['firstId'])); ?>
                         <tr>
                             <td>
-                                <input class="sr-only" type="checkbox" id="<?= $checkboxId ?>" name="objects[]"
+                                <input class="sr-only" type="checkbox" id="<?= $checkboxId ?>" name="objects[]" data-rollback-choice
                                        value="<?= $this->escape($row['firstId']) ?>">
                                 <label class="toggle-switch" for="<?= $checkboxId ?>" aria-hidden="true">
                                     <span class="toggle-slider"></span>

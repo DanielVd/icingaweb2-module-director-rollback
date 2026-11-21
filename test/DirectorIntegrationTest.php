@@ -68,8 +68,28 @@ switch ($argv[2] ?? '') {
         break;
 
     case 'partial':
-        $selection = $select(['director-rollback-integration-host-template', 'director-rollback-integration-set']);
-        requireThat(count($selection['rows']) === 5 && count($selection['reasons']) === 3, 'Dependency closure is incorrect.');
+        $snapshot = $pending->snapshot();
+        $plan = $pending->plan($snapshot);
+        $states = $pending->objectSnapshots($plan);
+        $host = $plan[array_search('director-rollback-integration-host-01', array_column($plan, 'name'), true)];
+        $service = array_values(array_filter($plan, static fn ($row) => $row['host'] === $host['name']))[0];
+        $links = $planner->selectionLinks($plan, $states);
+        requireThat(in_array($service['firstId'], $links[$host['firstId']], true)
+            && in_array($host['firstId'], $links[$service['firstId']], true), 'Host and service are not linked in the selector.');
+        $childSelection = $planner->select($snapshot, $plan, [$service['firstId']], $states);
+        requireThat(array_column($childSelection['rows'], 'firstId') === [$service['firstId'], $host['firstId']],
+            'Selecting the service must include its pending host and order the removal child first.');
+        try {
+            $planner->select($snapshot, [$host], [$host['firstId']], $states);
+            throw new RuntimeException('Host removal was accepted without its dependent service.');
+        } catch (DomainException $error) {
+            requireThat(str_contains($error->getMessage(), 'outside the plan'), $error->getMessage());
+        }
+
+        $selection = $select(['director-rollback-integration-host-template', 'director-rollback-integration-set-member']);
+        requireThat(count($selection['rows']) === 5 && count($selection['reasons']) >= 3, 'Dependency closure is incorrect.');
+        requireThat(in_array('director-rollback-integration-set', array_column($selection['rows'], 'name'), true),
+            'Selecting a member must include the pending service set.');
         $executor->apply($selection['token'], $selection['requested']);
         requireThat($pending->preview()['count'] === 4, 'Partial rollback must preserve four unrelated operations.');
         break;
@@ -108,6 +128,23 @@ switch ($argv[2] ?? '') {
         requireThat($pending->preview()['count'] === 0, 'Full rollback did not clear the plan.');
         break;
 
+    case 'independent':
+        $adapter = $db->getDbAdapter();
+        $parent = $adapter->fetchOne($adapter->select()->from('icinga_host', 'object_name')
+            ->where('object_type = ?', 'object')->where('disabled = ?', 'n')->limit(1));
+        requireThat(is_string($parent), 'The copied configuration must contain an enabled baseline host.');
+        $service = IcingaObject::createByType('icinga_service', [
+            'object_name' => 'director-rollback-independent-service', 'object_type' => 'object',
+            'host' => $parent, 'disabled' => true, 'check_command' => 'dummy',
+        ], $db);
+        $service->store();
+        $selection = $select(['director-rollback-independent-service']);
+        requireThat(count($selection['rows']) === 1, 'A parent without pending changes must stay out of the selection.');
+        $executor->apply($selection['token'], $selection['requested']);
+        requireThat(IcingaHost::exists($parent, $db) && $pending->preview()['count'] === 0,
+            'Independent service rollback deleted its deployed parent or left pending operations.');
+        break;
+
     case 'prepare-restore':
         $set = IcingaObject::createByType('icinga_service_set', [
             'object_name' => 'director-rollback-empty-set', 'object_type' => 'template', 'description' => 'Before',
@@ -144,6 +181,6 @@ switch ($argv[2] ?? '') {
         break;
 
     default:
-        throw new InvalidArgumentException('Choose prepare, partial, stale, atomic, full, prepare-restore, or restore.');
+        throw new InvalidArgumentException('Choose prepare, partial, stale, atomic, full, independent, prepare-restore, or restore.');
 }
 echo 'Director integration test passed: ' . $argv[2] . PHP_EOL;

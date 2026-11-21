@@ -114,6 +114,12 @@ class IndexController extends Controller
             $plan = $pending->plan($snapshot);
             $this->view->choices = array_filter($plan, PartialRollbackPlan::isSelectable(...));
             $this->view->deploymentId = $snapshot['deploymentId'];
+            $planner = new PartialRollbackPlan($this->db());
+            $states = $pending->objectSnapshots($plan);
+            if ($request->isGet()) {
+                $this->view->selectionLinks = $planner->selectionLinks($plan, $states);
+                return;
+            }
 
             $confirming = $request->isPost() && $request->getPost('selection') !== null;
             $raw = $confirming ? $request->getPost('selection') : $request->getPost('objects', []);
@@ -123,23 +129,22 @@ class IndexController extends Controller
             if (! is_array($raw)) {
                 throw new DomainException('Invalid selection.');
             }
-            if ($request->isPost()) {
-                $selection = (new PartialRollbackPlan($this->db()))->select(
-                    $snapshot, $plan, $raw, $pending->objectSnapshots($plan)
-                );
-                $this->view->selection = $selection;
-                if ($this->hasPermission('director/showconfig')) {
-                    $this->view->diffs = $pending->diffs($selection['rows']);
-                }
-                $this->view->rollbackForm = $this->confirmationForm(
-                    $selection['token'],
-                    $selection['requested'],
-                    $confirming
-                );
+            $selection = $planner->select($snapshot, $plan, $raw, $states);
+            $this->view->selection = $selection;
+            if ($this->hasPermission('director/showconfig')) {
+                $this->view->diffs = $pending->diffs($selection['rows']);
             }
+            $this->view->rollbackForm = $this->confirmationForm(
+                $selection['token'],
+                $selection['requested'],
+                $confirming
+            );
         } catch (DomainException $exception) {
             $this->getResponse()->setHttpResponseCode(409);
             $this->view->error = $this->translate($exception->getMessage());
+            if (isset($planner, $states)) {
+                $this->view->selectionLinks = $planner->selectionLinks($plan, $states);
+            }
         } catch (Throwable $exception) {
             Logger::error('Director partial rollback preview failed: %s', $exception->getMessage());
             $this->getResponse()->setHttpResponseCode(409);
