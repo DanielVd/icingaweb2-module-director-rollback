@@ -1,0 +1,74 @@
+<div class="content">
+    <h1><?= $this->escape($this->translate('Partial rollback')) ?></h1>
+    <p><a href="<?= $this->escape((string) $this->overviewUrl) ?>">
+        <?= $this->escape($this->translate('Back to all changes')) ?>
+    </a></p>
+    <?php if ($this->error !== null): ?>
+        <p class="error"><?= $this->escape($this->error) ?></p>
+    <?php endif ?>
+    <?php
+    $labels = [
+        'restore' => $this->translate('Restore previous state'),
+        'recreate' => $this->translate('Recreate deleted object'),
+        'remove' => $this->translate('Remove new object'),
+    ];
+    ?>
+    <?php if ($this->selection !== null): ?>
+        <h2><?= $this->escape($this->translate('Review selected changes')) ?></h2>
+        <table class="common-table">
+            <thead>
+                <tr>
+                    <?php foreach (['Object', 'Host', 'Proposed action', 'Included as'] as $label): ?>
+                        <th><?= $this->escape($this->translate($label)) ?></th>
+                    <?php endforeach ?>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($this->selection['rows'] as $row): ?>
+                    <tr>
+                        <td><?= $this->escape($row['name']) ?></td>
+                        <td><?= $this->escape($row['host'] ?? '') ?></td>
+                        <td><?= $this->escape($labels[$row['operation']]) ?></td>
+                        <td><?= $this->escape(in_array($row['firstId'], $this->selection['requested'], true)
+                            ? $this->translate('Selected')
+                            : $this->translate('Required dependency')) ?></td>
+                    </tr>
+                <?php endforeach ?>
+            </tbody>
+        </table>
+        <p><?= $this->escape($this->translate('The active deployment is unchanged. Other pending changes stay pending.')) ?></p>
+        <?= $this->rollbackForm ?>
+        <p><a href="<?= $this->escape((string) $this->selectionUrl) ?>">
+            <?= $this->escape($this->translate('Change selection')) ?>
+        </a></p>
+    <?php elseif ($this->choices): ?>
+        <p><?= $this->escape($this->translate('Select hosts or their services. The preview includes any required dependencies.')) ?></p>
+        <form action="<?= $this->escape((string) $this->selectionUrl) ?>" method="post">
+            <table class="common-table">
+                <thead>
+                    <tr>
+                        <?php foreach (['Object', 'Host', 'Proposed action'] as $label): ?>
+                            <th><?= $this->escape($this->translate($label)) ?></th>
+                        <?php endforeach ?>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($this->choices as $row): ?>
+                        <tr>
+                            <td>
+                                <label><input type="checkbox" name="objects[]" value="<?= $this->escape($row['firstId']) ?>">
+                                    <?= $this->escape($row['host'] === null ? $row['name'] : $row['host'] . ' / ' . $row['name']) ?>
+                                </label>
+                            </td>
+                            <td><?= $this->escape($row['host'] ?? '') ?></td>
+                            <td><?= $this->escape($labels[$row['operation']]) ?></td>
+                        </tr>
+                    <?php endforeach ?>
+                </tbody>
+            </table>
+            <button type="submit"><?= $this->escape($this->translate('Review selection')) ?></button>
+        </form>
+    <?php elseif ($this->error === null): ?>
+        <p><?= $this->escape($this->translate('There are no hosts or services eligible for partial rollback.')) ?></p>
+    <?php endif ?>
+</div>

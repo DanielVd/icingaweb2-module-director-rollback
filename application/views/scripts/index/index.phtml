@@ -10,6 +10,11 @@
             $preview['deploymentId'],
             $preview['baseline']
         )) ?></p>
+        <?php if ($this->partialUrl !== null): ?>
+            <p><a href="<?= $this->escape((string) $this->partialUrl) ?>">
+                <?= $this->escape($this->translate('Select objects for rollback')) ?>
+            </a></p>
+        <?php endif ?>
         <?php if ($this->rollbackForm !== null): ?>
             <p><?= $this->escape($this->translate('Applying this plan rolls back all pending changes without deploying.')) ?></p>
             <?= $this->rollbackForm ?>

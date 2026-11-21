@@ -39,6 +39,9 @@ final class RollbackPlan
             $exists = $activity->action_name !== 'delete';
             if (! isset($groups[$key])) {
                 $groups[$key] = self::row($activity, $identity['scope'], '') + [
+                    'kind' => $identity['kind'],
+                    'host' => $identity['host'],
+                    'serviceSet' => $identity['serviceSet'],
                     'existed' => $existed,
                     'exists' => $exists,
                     'consistent' => true,

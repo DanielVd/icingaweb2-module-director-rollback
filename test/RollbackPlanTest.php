@@ -80,4 +80,25 @@ expect([], RollbackPlan::fromActivities([
 ]));
 expect([], RollbackPlan::fromActivities([]));
 
+require __DIR__ . '/../library/Director_rollback/PartialRollbackPlan.php';
+
+$partial = Icinga\Module\Director_rollback\PartialRollbackPlan::class;
+expect([7, 12], $partial::normalizeIds(['12', '7', 12]));
+foreach (['0', '1e2', '1.5', ['1']] as $invalid) {
+    try {
+        $partial::normalizeIds([$invalid]);
+        throw new RuntimeException('Invalid selection was accepted.');
+    } catch (DomainException) {
+        // This input must never reach the planner.
+    }
+}
+
+$plan = RollbackPlan::fromActivities([
+    activity(1, $host, 'host', 'create', null, snapshot('host')),
+    activity(2, $host, 'template', 'create', null, snapshot('template', null, 'template')),
+    activity(3, $service, 'scoped', 'create', null, snapshot('scoped', 'host') + ['service_set' => 'set']),
+    activity(4, $service, 'direct', 'create', null, snapshot('direct', 'host')),
+]);
+expect(['direct', 'host'], array_column(array_filter($plan, $partial::isSelectable(...)), 'name'));
+
 echo "Rollback plan tests passed\n";

@@ -29,6 +29,7 @@ final class PendingChanges
             'baseline' => $snapshot['baseline'],
             'token' => $snapshot['token'],
             'canApply' => $rows !== [] && ! in_array('review', array_column($plan, 'operation'), true),
+            'canSelect' => array_filter($plan, PartialRollbackPlan::isSelectable(...)) !== [],
             'count' => $count,
             'rows' => $rows,
             'page' => $page,
