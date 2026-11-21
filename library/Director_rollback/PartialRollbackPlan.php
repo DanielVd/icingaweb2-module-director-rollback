@@ -2,19 +2,21 @@
 
 namespace Icinga\Module\Director_rollback;
 
-use Icinga\Module\Director\Db;
 use DomainException;
+use Icinga\Module\Director\Db;
 
 final class PartialRollbackPlan
 {
-    public function __construct(private Db $db)
+    private RollbackObjects $objects;
+
+    public function __construct(Db $db)
     {
+        $this->objects = new RollbackObjects($db);
     }
 
     public static function isSelectable(array $row): bool
     {
-        return $row['operation'] !== 'review' && $row['kind'] === 'object'
-            && ($row['type'] === 'icinga_host' || ($row['host'] !== null && $row['serviceSet'] === null));
+        return $row['operation'] !== 'review';
     }
 
     public static function normalizeIds(array $ids): array
@@ -34,154 +36,127 @@ final class PartialRollbackPlan
         return array_values($selection);
     }
 
-    public function select(array $snapshot, array $plan, array $requested): array
+    public function select(array $snapshot, array $plan, array $requested, array $snapshots): array
     {
         $ids = self::normalizeIds($requested);
         if ($ids === []) {
             throw new DomainException('Select at least one object.');
         }
 
-        $hosts = $services = $selectable = $selected = [];
+        $byId = $byKey = $removals = [];
         foreach (array_filter($plan, self::isSelectable(...)) as $row) {
-            $selectable[$row['firstId']] = $row;
-            if ($row['type'] === 'icinga_host') {
-                $hosts[$row['name']] = $row;
-            } else {
-                $services[$row['host']][$row['name']] = $row;
+            $byId[$row['firstId']] = $row;
+            $byKey[$this->key($row)] = $row;
+            if ($row['operation'] === 'remove') {
+                try {
+                    $id = $this->objects->findId($row);
+                } catch (DomainException) {
+                    // An ambiguous removal is blocked when selected or encountered as a dependency.
+                    continue;
+                }
+                if ($id !== null) {
+                    $removals[$row['type'] . ':' . $id] = $row;
+                }
             }
         }
+
+        $visiting = $ordered = $reasons = $conflicts = [];
+        $visit = function (array $row) use (&$visit, &$visiting, &$ordered, &$reasons, &$conflicts, $byKey, $removals, $snapshots): void {
+            $id = $row['firstId'];
+            if (isset($ordered[$id])) {
+                return;
+            }
+            if (isset($visiting[$id])) {
+                throw new DomainException('The selection contains a cyclic dependency.');
+            }
+
+            $visiting[$id] = true;
+            if ($row['operation'] === 'remove') {
+                $objectId = $this->objects->findId($row);
+                if ($objectId === null) {
+                    throw new DomainException('A selected object to remove no longer exists.');
+                }
+
+                $this->objects->assertNoExternalReferences($row['type'], $objectId);
+                $dependents = $this->objects->dependents($row['type'], $objectId);
+                sort($dependents);
+                foreach ($dependents as $key) {
+                    $dependent = $removals[$key] ?? null;
+                    if ($dependent === null) {
+                        throw new DomainException('Removing a selected object would affect a dependent object outside the plan.');
+                    }
+
+                    $reasons[$dependent['firstId']][$id] = ['operation' => 'remove', 'name' => $this->label($row)];
+                    $visit($dependent);
+                }
+            } else {
+                foreach ($this->prerequisites($row, $snapshots[$id]['old']) as $prerequisite) {
+                    $candidate = $byKey[$this->key($prerequisite)] ?? null;
+                    if ($this->objects->findId($prerequisite) !== null) {
+                        if (($candidate['operation'] ?? null) === 'remove') {
+                            $conflicts[$candidate['firstId']] = true;
+                        }
+                        continue;
+                    }
+                    if (($candidate['operation'] ?? null) !== 'recreate') {
+                        throw new DomainException('A required host, template or service set is missing from Director and the rollback plan.');
+                    }
+
+                    $reasons[$candidate['firstId']][$id] = ['operation' => 'recreate', 'name' => $this->label($row)];
+                    $visit($candidate);
+                }
+            }
+            unset($visiting[$id]);
+            $ordered[$id] = $row;
+        };
 
         foreach ($ids as $id) {
-            if (! isset($selectable[$id])) {
+            if (! isset($byId[$id])) {
                 throw new DomainException('A selected object is no longer eligible for partial rollback.');
             }
-            $selected[$id] = $selectable[$id];
+            $visit($byId[$id]);
+        }
+        if (array_intersect_key($ordered, $conflicts)) {
+            throw new DomainException('The selection would remove an object needed by another selected restoration.');
         }
 
-        foreach ($selected as $row) {
-            if ($row['type'] === 'icinga_host' && $row['operation'] === 'remove') {
-                $hostId = $this->hostId($row['name']);
-                foreach ($this->servicesOnHost($hostId) as $service) {
-                    $dependency = $services[$row['name']][$service->object_name] ?? null;
-                    if ($service->object_type !== 'object' || $service->service_set_id !== null
-                        || $dependency === null || $dependency['operation'] !== 'remove'
-                    ) {
-                        throw new DomainException('Removing a selected host would also remove a service outside the plan.');
-                    }
-                    $selected[$dependency['firstId']] = $dependency;
-                }
-            } elseif ($row['type'] === 'icinga_service' && $row['operation'] !== 'remove') {
-                $host = $hosts[$row['host']] ?? null;
-                if ($host !== null && $host['operation'] === 'remove' && isset($selected[$host['firstId']])) {
-                    throw new DomainException('A selected service cannot be restored while removing its host.');
-                }
-                if ($this->hostId($row['host']) === null) {
-                    if ($host === null || $host['operation'] !== 'recreate') {
-                        throw new DomainException('The host required to restore a selected service is missing.');
-                    }
-                    $selected[$host['firstId']] = $host;
-                }
-            }
-        }
-
-        foreach ($selected as $row) {
-            if ($row['operation'] === 'remove') {
-                $this->assertRemovable($row);
-            } else {
-                $this->assertTemplatesPresent($row);
-            }
-        }
-
-        ksort($selected, SORT_NUMERIC);
         return [
             'requested' => $ids,
-            'rows' => array_values($selected),
-            'token' => hash('sha256', json_encode([$snapshot['token'], $ids, array_keys($selected)], JSON_THROW_ON_ERROR)),
+            'rows' => array_values($ordered),
+            'reasons' => $reasons,
+            'token' => hash('sha256', json_encode(
+                [$snapshot['token'], $ids, array_keys($ordered), $reasons],
+                JSON_THROW_ON_ERROR
+            )),
         ];
     }
 
-    private function hostId(string $name): ?int
+    private function label(array $row): string
     {
-        $db = $this->db->getDbAdapter();
-        $id = $db->fetchOne(
-            $db->select()->from('icinga_host', 'id')->where('object_name = ?', $name)->where('object_type = ?', 'object')
-        );
-        return $id === false ? null : (int) $id;
+        return $row['scope'] === '' ? $row['name'] : $row['scope'] . ' / ' . $row['name'];
     }
 
-    private function servicesOnHost(?int $hostId): array
+    private function key(array $row): string
     {
-        if ($hostId === null) {
-            throw new DomainException('A selected host no longer exists.');
-        }
-
-        $db = $this->db->getDbAdapter();
-        return $db->fetchAll(
-            $db->select()->from('icinga_service', ['object_name', 'object_type', 'service_set_id'])
-                ->where('host_id = ?', $hostId)
+        return json_encode(
+            [$row['type'], $row['kind'], $row['name'], $row['host'], $row['serviceSet']],
+            JSON_THROW_ON_ERROR
         );
     }
 
-    private function assertRemovable(array $row): void
+    private function prerequisites(array $row, string $before): iterable
     {
-        $db = $this->db->getDbAdapter();
-        if ($row['type'] === 'icinga_host') {
-            $id = $this->hostId($row['name']);
-            $references = [
-                'icinga_dependency' => ['child_host_id', 'parent_host_id'],
-                'icinga_host_inheritance' => ['parent_host_id'],
-                'icinga_host_service' => ['host_id'],
-                'icinga_host_service_blacklist' => ['host_id'],
-                'icinga_host_template_choice' => ['required_template_id'],
-                'icinga_notification' => ['host_id'],
-                'icinga_service_set' => ['host_id'],
-            ];
-        } else {
-            $hostId = $this->hostId($row['host']);
-            $id = $hostId === null ? false : $db->fetchOne(
-                $db->select()->from('icinga_service', 'id')->where('host_id = ?', $hostId)
-                    ->where('object_name = ?', $row['name'])->where('object_type = ?', 'object')
-                    ->where('service_set_id IS NULL')
-            );
-            $references = [
-                'icinga_dependency' => ['child_service_id', 'parent_service_id'],
-                'icinga_host_service' => ['service_id'],
-                'icinga_host_service_blacklist' => ['service_id'],
-                'icinga_notification' => ['service_id'],
-                'icinga_service_inheritance' => ['parent_service_id'],
-                'icinga_service_template_choice' => ['required_template_id'],
-            ];
+        $props = json_decode($before, true, 512, JSON_THROW_ON_ERROR);
+        $unscoped = ['host' => null, 'serviceSet' => null];
+        if ($row['host'] !== null) {
+            yield ['type' => 'icinga_host', 'name' => $row['host'],
+                'kind' => $row['kind'] === 'apply' ? 'template' : 'object'] + $unscoped;
         }
-
-        if ($id === false || $id === null) {
-            throw new DomainException('A selected object to remove no longer exists.');
+        if ($row['serviceSet'] !== null) {
+            yield ['type' => 'icinga_service_set', 'name' => $row['serviceSet'], 'kind' => 'template'] + $unscoped;
         }
-        foreach ($references as $table => $columns) {
-            $query = $db->select()->from($table, new \Zend_Db_Expr('1'))->limit(1);
-            foreach ($columns as $column) {
-                $query->orWhere("$column = ?", $id);
-            }
-            if ($db->fetchOne($query) !== false) {
-                throw new DomainException('A selected object is referenced by another object outside the plan.');
-            }
-        }
-    }
-
-    private function assertTemplatesPresent(array $row): void
-    {
-        $db = $this->db->getDbAdapter();
-        $old = $db->fetchOne($db->select()->from('director_activity_log', 'old_properties')
-            ->where('id = ?', $row['firstId']));
-        $properties = json_decode($old, true, 512, JSON_THROW_ON_ERROR);
-        foreach ($properties['imports'] ?? [] as $name) {
-            $query = $db->select()->from($row['type'], 'id')->where('object_type = ?', 'template')
-                ->where('object_name = ?', $name);
-            if ($row['type'] === 'icinga_service') {
-                $query->where('host_id IS NULL')->where('service_set_id IS NULL');
-            }
-            if ($db->fetchOne($query) === false) {
-                throw new DomainException('A required template is missing. Partial rollback cannot restore templates.');
-            }
+        foreach ($props['imports'] ?? [] as $name) {
+            yield ['type' => $row['type'], 'name' => $name, 'kind' => 'template'] + $unscoped;
         }
     }
 }

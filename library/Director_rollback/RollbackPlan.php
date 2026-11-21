@@ -15,8 +15,8 @@ final class RollbackPlan
         $blockedNames = [];
 
         foreach ($activities as $activity) {
-            $old = self::identity($activity->object_type, $activity->old_properties);
-            $new = self::identity($activity->object_type, $activity->new_properties);
+            $old = self::identify($activity->object_type, $activity->old_properties);
+            $new = self::identify($activity->object_type, $activity->new_properties);
             $identity = match ($activity->action_name) {
                 'create' => $activity->old_properties === null ? $new : null,
                 'modify' => $old === $new ? $new : null,
@@ -50,12 +50,13 @@ final class RollbackPlan
                 ];
             } else {
                 $group = &$groups[$key];
-                $group['consistent'] = $group['consistent'] && $group['exists'] === $existed;
+                $group['consistent'] = $group['consistent'] && $group['exists'] === $existed
+                    && ($identity['kind'] !== 'apply' || ! $existed
+                        || ($group['after'] !== null && self::sameState($group['after'], $activity->old_properties)));
                 $group['exists'] = $exists;
                 $group['after'] = $activity->new_properties;
                 $group['lastId'] = (int) $activity->id;
-                $group['activityIds'][] = (int) $activity->id;
-                $group['activityCount'] = count($group['activityIds']);
+                ++$group['activityCount'];
                 unset($group);
             }
         }
@@ -87,7 +88,7 @@ final class RollbackPlan
     {
         $normalize = static function (string $snapshot): array {
             $properties = (array) json_decode($snapshot, false, 512, JSON_THROW_ON_ERROR);
-            foreach (['groups', 'imports', 'vars', 'custom_properties'] as $property) {
+            foreach (['groups', 'imports', 'vars', 'custom_properties', 'services'] as $property) {
                 if (isset($properties[$property]) && (array) $properties[$property] === []) {
                     unset($properties[$property]);
                 }
@@ -99,22 +100,26 @@ final class RollbackPlan
         return $normalize($left) === $normalize($right);
     }
 
-    private static function identity(string $type, ?string $snapshot): ?array
+    public static function identify(string $type, ?string $snapshot): ?array
     {
-        if ($snapshot === null || ! in_array($type, ['icinga_host', 'icinga_service'], true)) {
+        if ($snapshot === null || ! in_array($type, ['icinga_host', 'icinga_service', 'icinga_service_set'], true)) {
             return null;
         }
 
         $properties = json_decode($snapshot);
         if (! is_object($properties) || ! is_string($properties->object_name ?? null)
-            || ! in_array($properties->object_type ?? null, ['object', 'template'], true)
+            || ! in_array($properties->object_type ?? null,
+                $type === 'icinga_service' ? ['object', 'template', 'apply'] : ['object', 'template'], true)
+            || ($type === 'icinga_service_set' && ! empty((array) ($properties->services ?? [])))
         ) {
             return null;
         }
 
-        $host = $type === 'icinga_service' ? ($properties->host ?? null) : null;
+        $host = $type !== 'icinga_host' ? ($properties->host ?? null) : null;
         $serviceSet = $type === 'icinga_service' ? ($properties->service_set ?? null) : null;
-        if (($host !== null && ! is_string($host)) || ($serviceSet !== null && ! is_string($serviceSet))) {
+        if (($host !== null && ! is_string($host)) || ($serviceSet !== null && ! is_string($serviceSet))
+            || ($host !== null && $serviceSet !== null)
+        ) {
             return null;
         }
 
@@ -137,7 +142,6 @@ final class RollbackPlan
             'firstId' => (int) $activity->id,
             'lastId' => (int) $activity->id,
             'activityCount' => 1,
-            'activityIds' => [(int) $activity->id],
         ];
     }
 }

@@ -1,0 +1,18 @@
+<?php if ($diff): ?>
+    <details>
+        <summary><?= $this->escape($this->translate('Show changes')) ?></summary>
+        <dl>
+            <?php foreach ($diff as $field): ?>
+                <dt><?= $this->escape($field['field']) ?></dt>
+                <?php if ($field['hidden']): ?>
+                    <dd><?= $this->escape($this->translate('Values hidden')) ?></dd>
+                <?php else: ?>
+                    <dd><?= $this->escape($this->translate('Current')) ?>:
+                        <code><?= $this->escape($field['current'] ?? $this->translate('Absent')) ?></code></dd>
+                    <dd><?= $this->escape($this->translate('After rollback')) ?>:
+                        <code><?= $this->escape($field['restored'] ?? $this->translate('Absent')) ?></code></dd>
+                <?php endif ?>
+            <?php endforeach ?>
+        </dl>
+    </details>
+<?php endif ?>

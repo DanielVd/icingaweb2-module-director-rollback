@@ -11,7 +11,6 @@ use Icinga\Module\Director\Web\Window;
 use Icinga\Module\Director_rollback\PartialRollbackPlan;
 use Icinga\Module\Director_rollback\PendingChanges;
 use Icinga\Module\Director_rollback\RollbackExecutor;
-use Icinga\Module\Director_rollback\RollbackPlan;
 use Icinga\Web\Controller;
 use Icinga\Web\Form;
 use Icinga\Web\Notification;
@@ -41,6 +40,12 @@ class IndexController extends Controller
         }
         $request = $this->getRequest();
 
+        if (! $request->isGet()) {
+            $this->getResponse()->setHeader('Allow', 'GET')->setHttpResponseCode(405);
+            $this->_helper->viewRenderer->setNoRender();
+            return;
+        }
+
         try {
             $page = (int) $request->getQuery('page', 1);
             $this->view->preview = (new PendingChanges($this->db(), $this->api()))->preview($page);
@@ -53,10 +58,43 @@ class IndexController extends Controller
             $this->view->partialUrl = $this->rollbackUrl('director_rollback/index/partial');
         }
 
-        if ($request->isPost() || (($this->view->preview['canApply'] ?? false)
-            && $this->hasPermission('director_rollback/apply'))
-        ) {
-            $this->view->rollbackForm = $this->confirmationForm($this->view->preview['token'] ?? '');
+        if ($this->hasPermission('director_rollback/apply') && ($this->view->preview['canApply'] ?? false)) {
+            $this->view->fullUrl = $this->rollbackUrl('director_rollback/index/full');
+        }
+    }
+
+    public function fullAction(): void
+    {
+        if (! $this->checkAccess()) {
+            return;
+        }
+        $this->assertPermission('director_rollback/apply');
+        $this->view->overviewUrl = $this->rollbackUrl('director_rollback');
+
+        try {
+            $pending = new PendingChanges($this->db(), $this->api());
+            $snapshot = $pending->snapshot();
+            $rows = $pending->plan($snapshot);
+            if ($rows === [] || in_array('review', array_column($rows, 'operation'), true)) {
+                throw new DomainException('Full rollback is unavailable for the current plan.');
+            }
+            $review = (new PartialRollbackPlan($this->db()))->select(
+                $snapshot, $rows, array_column($rows, 'firstId'), $pending->objectSnapshots($rows)
+            );
+            $this->view->rows = $review['rows'];
+            $this->view->deploymentId = $snapshot['deploymentId'];
+            if ($this->hasPermission('director/showconfig')) {
+                $this->view->diffs = $pending->diffs($rows);
+            }
+
+            $this->view->rollbackForm = $this->confirmationForm($snapshot['token']);
+        } catch (DomainException $exception) {
+            $this->getResponse()->setHttpResponseCode(409);
+            $this->view->error = $this->translate($exception->getMessage());
+        } catch (Throwable $exception) {
+            Logger::error('Director full rollback review failed: %s', $exception->getMessage());
+            $this->getResponse()->setHttpResponseCode(409);
+            $this->view->error = $this->translate('The full rollback plan could not be verified.');
         }
     }
 
@@ -73,7 +111,7 @@ class IndexController extends Controller
         try {
             $pending = new PendingChanges($this->db(), $this->api());
             $snapshot = $pending->snapshot();
-            $plan = RollbackPlan::fromActivities($pending->activities($snapshot));
+            $plan = $pending->plan($snapshot);
             $this->view->choices = array_filter($plan, PartialRollbackPlan::isSelectable(...));
             $this->view->deploymentId = $snapshot['deploymentId'];
 
@@ -86,8 +124,13 @@ class IndexController extends Controller
                 throw new DomainException('Invalid selection.');
             }
             if ($request->isPost()) {
-                $selection = (new PartialRollbackPlan($this->db()))->select($snapshot, $plan, $raw);
+                $selection = (new PartialRollbackPlan($this->db()))->select(
+                    $snapshot, $plan, $raw, $pending->objectSnapshots($plan)
+                );
                 $this->view->selection = $selection;
+                if ($this->hasPermission('director/showconfig')) {
+                    $this->view->diffs = $pending->diffs($selection['rows']);
+                }
                 $this->view->rollbackForm = $this->confirmationForm(
                     $selection['token'],
                     $selection['requested'],
@@ -138,14 +181,14 @@ class IndexController extends Controller
         $form = new Form();
         $form->setName($partial ? 'director_rollback_partial' : 'director_rollback_confirm')
             ->setSubmitLabel($partial ? $this->translate('Apply partial rollback') : $this->translate('Apply full rollback'))
-            ->setRedirectUrl($this->rollbackUrl('director_rollback'));
+            ->setRedirectUrl($this->rollbackUrl('director_rollback'))
+            ->setAction($this->rollbackUrl($partial ? 'director_rollback/index/partial' : 'director_rollback/index/full'));
         $form->addElement('hidden', 'snapshot_token', [
             'required' => true,
             'value' => $token,
             'validators' => [['Regex', false, ['pattern' => '/\A[a-f0-9]{64}\z/']]],
         ]);
         if ($partial) {
-            $form->setAction($this->rollbackUrl('director_rollback/index/partial'));
             $form->addElement('hidden', 'selection', [
                 'required' => true,
                 'value' => implode(',', $requested),

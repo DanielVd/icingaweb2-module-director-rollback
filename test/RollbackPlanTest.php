@@ -73,7 +73,7 @@ $plan = RollbackPlan::fromActivities([
     activity(7, $host, 'inconsistent', 'create', null, snapshot('inconsistent')),
     activity(8, 'icinga_command', 'check', 'delete', snapshot('check'), null),
 ]);
-expect(array_fill(0, 7, 'review'), array_column($plan, 'operation'));
+expect(['review', 'review', 'review', 'remove', 'review', 'review', 'review'], array_column($plan, 'operation'));
 expect([], RollbackPlan::fromActivities([
     activity(1, $host, 'restored', 'modify', snapshot('restored'), snapshot('restored') + ['display_name' => 'Test']),
     activity(2, $host, 'restored', 'modify', snapshot('restored') + ['display_name' => 'Test'], snapshot('restored')),
@@ -96,9 +96,42 @@ foreach (['0', '1e2', '1.5', ['1']] as $invalid) {
 $plan = RollbackPlan::fromActivities([
     activity(1, $host, 'host', 'create', null, snapshot('host')),
     activity(2, $host, 'template', 'create', null, snapshot('template', null, 'template')),
-    activity(3, $service, 'scoped', 'create', null, snapshot('scoped', 'host') + ['service_set' => 'set']),
+    activity(3, $service, 'scoped', 'create', null, snapshot('scoped') + ['service_set' => 'set']),
     activity(4, $service, 'direct', 'create', null, snapshot('direct', 'host')),
 ]);
-expect(['direct', 'host'], array_column(array_filter($plan, $partial::isSelectable(...)), 'name'));
+expect(['direct', 'scoped', 'template', 'host'], array_column(array_filter($plan, $partial::isSelectable(...)), 'name'));
+
+require __DIR__ . '/../library/Director_rollback/RollbackDiff.php';
+$diff = Icinga\Module\Director_rollback\RollbackDiff::between(
+    '{"address":"192.0.2.3","vars":{"secret":"current secret"}}',
+    '{"address":"192.0.2.2","vars":{"secret":"old secret"}}'
+);
+expect([
+    ['field' => 'address', 'current' => '192.0.2.3', 'restored' => '192.0.2.2', 'hidden' => false],
+    ['field' => 'vars', 'current' => null, 'restored' => null, 'hidden' => true],
+], $diff);
+
+$plan = RollbackPlan::fromActivities([
+    activity(1, 'icinga_service_set', 'set', 'create', null, snapshot('set', null, 'template')),
+    activity(2, $service, 'duplicate', 'create', null, snapshot('duplicate', null, 'apply')),
+    activity(3, $service, 'duplicate', 'create', null, snapshot('duplicate', null, 'apply')),
+    activity(4, 'icinga_service_set', 'populated', 'delete',
+        snapshot('populated', null, 'template') + ['services' => ['member']], null),
+]);
+expect(['review', 'review', 'remove'], array_column($plan, 'operation'));
+
+require __DIR__ . '/../library/Director_rollback/ServiceFileComparison.php';
+$compare = Icinga\Module\Director_rollback\ServiceFileComparison::class;
+$normal = "object Service \"one\" {\n    host_name = \"node\"\n    import \"A\"\n    import \"B\"\n}\n";
+$swapped = "object Service \"one\" {\n    host_name = \"node\"\n    import \"B\"\n    import \"A\"\n}\n";
+$other = "object Service \"two\" {\n    host_name = \"node\"\n}\n";
+$ties = ['["node","one"]' => ['A', 'B']];
+expect([true, false, true, false, false], [
+    $compare::equivalent($normal . $other, $other . $normal),
+    $compare::equivalent($normal, $swapped),
+    $compare::equivalent($normal, $swapped, $ties),
+    $compare::equivalent($normal, str_replace('import "A"', 'import "C"', $normal), $ties),
+    $compare::equivalent($normal, str_replace('object Service', 'apply Service', $normal), $ties),
+]);
 
 echo "Rollback plan tests passed\n";

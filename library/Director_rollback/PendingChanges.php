@@ -2,6 +2,7 @@
 
 namespace Icinga\Module\Director_rollback;
 
+use DomainException;
 use Icinga\Module\Director\Core\CoreApi;
 use Icinga\Module\Director\Db;
 use Icinga\Module\Director\Objects\DirectorDeploymentLog;
@@ -18,7 +19,7 @@ final class PendingChanges
     public function preview(int $page = 1): array
     {
         $snapshot = $this->snapshot();
-        $plan = RollbackPlan::fromActivities($this->activities($snapshot));
+        $plan = $this->plan($snapshot);
         $count = count($plan);
         $pages = max(1, (int) ceil($count / self::PAGE_SIZE));
         $page = max(1, min($page, $pages));
@@ -35,6 +36,54 @@ final class PendingChanges
             'page' => $page,
             'pages' => $pages,
         ];
+    }
+
+    public function plan(array $snapshot): array
+    {
+        $rows = RollbackPlan::fromActivities($this->activities($snapshot));
+        $objects = new RollbackObjects($this->db);
+        foreach ($rows as &$row) {
+            if ($row['operation'] !== 'review' && $row['kind'] === 'apply') {
+                try {
+                    $objects->findId($row);
+                } catch (DomainException) {
+                    $row['operation'] = 'review';
+                }
+            }
+        }
+        unset($row);
+        return $rows;
+    }
+
+    public function objectSnapshots(array $rows): array
+    {
+        $ids = array_unique(array_merge(array_column($rows, 'firstId'), array_column($rows, 'lastId')));
+        if ($ids === []) {
+            return [];
+        }
+
+        $db = $this->db->getDbAdapter();
+        $snapshots = $db->fetchAssoc($db->select()
+            ->from('director_activity_log', ['id', 'old_properties', 'new_properties'])
+            ->where('id IN (?)', $ids));
+        $objects = [];
+        foreach ($rows as $row) {
+            $first = $snapshots[$row['firstId']] ?? null;
+            $last = $snapshots[$row['lastId']] ?? null;
+            if ($first === null || $last === null) {
+                throw new RuntimeException('An activity in the rollback plan is missing.');
+            }
+            $objects[$row['firstId']] = ['old' => $first['old_properties'], 'new' => $last['new_properties']];
+        }
+        return $objects;
+    }
+
+    public function diffs(array $rows): array
+    {
+        return array_map(
+            static fn ($snapshot) => RollbackDiff::between($snapshot['new'], $snapshot['old']),
+            $this->objectSnapshots($rows)
+        );
     }
 
     public function snapshot(): array
@@ -75,7 +124,7 @@ final class PendingChanges
         return $snapshot;
     }
 
-    public function activities(array $snapshot, bool $reverse = false): iterable
+    public function activities(array $snapshot): iterable
     {
         $adapter = $this->db->getDbAdapter();
         $statement = $adapter->query(
@@ -85,7 +134,7 @@ final class PendingChanges
                 ])
                 ->where('id > ?', $snapshot['baseline'])
                 ->where('id <= ?', $snapshot['lastId'])
-                ->order($reverse ? 'id DESC' : 'id ASC')
+                ->order('id ASC')
         );
 
         try {
