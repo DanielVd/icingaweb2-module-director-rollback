@@ -1,0 +1,29 @@
+<?php
+
+use gipfl\Diff\HtmlRenderer\SideBySideDiff;
+use gipfl\Diff\PhpDiff;
+
+$current = $restored = $hidden = [];
+foreach ($diff as $field) {
+    if ($field['hidden']) {
+        $hidden[] = $field['field'];
+        continue;
+    }
+    $current[] = $field['field'] . ' = ' . ($field['current'] ?? $this->translate('Absent'));
+    $restored[] = $field['field'] . ' = ' . ($field['restored'] ?? $this->translate('Absent'));
+}
+
+?>
+<details class="collapsible director-rollback-diff" data-no-persistence>
+    <summary class="director-rollback-button"><?= $this->escape($this->translate('Show changes')) ?></summary>
+    <?php if ($current !== []): ?>
+        <div class="director-rollback-diff-labels">
+            <span><?= $this->escape($this->translate('Current')) ?></span>
+            <span><?= $this->escape($this->translate('After rollback')) ?></span>
+        </div>
+        <?= (new SideBySideDiff(new PhpDiff($current, $restored)))->render() ?>
+    <?php endif ?>
+    <?php if ($hidden !== []): ?>
+        <p><?= $this->escape(sprintf($this->translate('Values hidden for %s'), implode(', ', $hidden))) ?></p>
+    <?php endif ?>
+</details>
