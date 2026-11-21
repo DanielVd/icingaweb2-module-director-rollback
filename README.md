@@ -20,7 +20,7 @@ sudo icingacli module enable director_rollback
 icingacli module list
 ```
 
-The checkout directory must be named `director_rollback` to match the Icinga Web 2 module ID. After enabling it, open **Icinga Director → Rollback**.
+The checkout directory must be named `director_rollback` to match the Icinga Web 2 module ID. After enabling it, open **Icinga Director → Rollback**. Rollback operators need the plan permissions plus the apply permission.
 
 | Permission | Access |
 | --- | --- |
@@ -46,7 +46,7 @@ The diff displays an allowlist of fields. It hides custom variable values.
 
 ### Unsupported or ambiguous changes
 
-The module supports hosts, services, host and service templates, service sets and service apply rules with an unambiguous identity. Renames, incomplete Activity Log entries and indistinguishable apply rules are marked **Review required**. Deleting a populated service set can also require review when Director logged the members only inside the deleted set rather than as separate activities. A dependency outside the supported types can block rollback.
+The module supports hosts, services, host and service templates, service sets and service apply rules with an unambiguous identity. Renames, incomplete Activity Log entries and indistinguishable apply rules are marked **Review required**. Deleting a populated service set can also require review when its members lack separate Activity Log entries. A dependency outside the supported types can block rollback.
 
 If the plan changes between review and confirmation, reload the preview and review it again. If testing with fixture objects on an instance that deploys automatically, keep the automatic deployment paused while they remain pending.
 
