@@ -24,6 +24,6 @@ Entries requiring review block full rollback. This includes renamed objects, app
 
 ## Partial rollback
 
-Choose **Select objects for rollback**, select the hosts or services to restore, then review and confirm the selection. The review includes services that must be removed with a pending new host and hosts that must be recreated before restoring a selected service. Dependencies outside the supported selection can block the operation.
+Choose **Partial rollback**, select the hosts or services to restore, then review and confirm the selection. The review includes services that must be removed with a pending new host and hosts that must be recreated before restoring a selected service. Dependencies outside the supported selection can block the operation.
 
 The module rechecks the selected objects and dependencies during confirmation. It renders the resulting configuration and verifies that the other pending operations remain unchanged before it commits. Apply rules, templates and services scoped to a service set are outside the partial rollback scope.
