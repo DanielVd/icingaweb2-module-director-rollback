@@ -18,12 +18,12 @@
         <?php if ($this->fullUrl !== null || $this->partialUrl !== null): ?>
             <div class="director-rollback-actions">
                 <?php if ($this->fullUrl !== null): ?>
-                    <a class="button-link" href="<?= $this->escape((string) $this->fullUrl) ?>">
+                    <a class="director-rollback-button" href="<?= $this->escape((string) $this->fullUrl) ?>">
                         <?= $this->escape($this->translate('Full rollback')) ?>
                     </a>
                 <?php endif ?>
                 <?php if ($this->partialUrl !== null): ?>
-                    <a class="button-link" href="<?= $this->escape((string) $this->partialUrl) ?>">
+                    <a class="director-rollback-button" href="<?= $this->escape((string) $this->partialUrl) ?>">
                         <?= $this->escape($this->translate('Partial rollback')) ?>
                     </a>
                 <?php endif ?>
@@ -66,19 +66,19 @@
             </table>
             <?php if ($preview['pages'] > 1): ?>
                 <?php $url = Url::fromRequest(); ?>
-                <p>
+                <nav class="director-rollback-actions" aria-label="<?= $this->escape($this->translate('Pagination')) ?>">
                     <?php if ($preview['page'] > 1): ?>
-                        <a href="<?= $this->escape((string) $url->with('page', $preview['page'] - 1)) ?>">
+                        <a class="director-rollback-button" href="<?= $this->escape((string) $url->with('page', $preview['page'] - 1)) ?>">
                             <?= $this->escape($this->translate('Previous')) ?>
                         </a>
                     <?php endif ?>
                     <?= $this->escape(sprintf($this->translate('Page %d of %d'), $preview['page'], $preview['pages'])) ?>
                     <?php if ($preview['page'] < $preview['pages']): ?>
-                        <a href="<?= $this->escape((string) $url->with('page', $preview['page'] + 1)) ?>">
+                        <a class="director-rollback-button" href="<?= $this->escape((string) $url->with('page', $preview['page'] + 1)) ?>">
                             <?= $this->escape($this->translate('Next')) ?>
                         </a>
                     <?php endif ?>
-                </p>
+                </nav>
             <?php endif ?>
         <?php endif ?>
     <?php endif ?>
